@@ -19,8 +19,8 @@ SQL = 'INSERT INTO stuff VALUES (4)'
 class Main(object):
     @cherrypy.expose
     def index(self):
-        with sqlite3.connect(DB_STRING) as conn:
-            conn.execute(SQL)
+        with sqlite3.connect(db_string) as connection:
+            connection.execute(SQL)
         return 'OK'
     # This will get current calendars on acuity
     @cherrypy.expose
