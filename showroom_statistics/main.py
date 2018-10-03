@@ -22,12 +22,6 @@ class Main(object):
         with sqlite3.connect(db_string) as connection:
             connection.execute(SQL)
         return 'OK'
-    # This will get current calendars on acuity
-    @cherrypy.expose
-    def calendars(self):
-        r = requests.get(acuity_root + '/calendars', auth=(acuity_userid, acuity_apikey))
-        calendars = r.json()
-        return json.dumps(calendars)
     # This will get today's appointments
     @cherrypy.expose
     def appointments(self):
@@ -40,6 +34,27 @@ class Main(object):
         appts = r.json()
         return json.dumps(appts)
 
+@cherrypy.expose
+class Salesperson(object):
+
+    # GET sends back all the salespeople
+    @cherrypy.tools.accept(media='text/plain')
+    def GET(self):
+        query = '''SELECT * FROM salesperson'''
+        with sqlite3.connect(db_string) as connection:
+            cursor = connection.execute(query)
+            sql_data = cursor.fetchall()
+            json_data = []
+            for t in sql_data:
+                sp = {
+                    'id': t[0],
+                    'name': t[1]
+                }
+                if t[2]:
+                    sp['department']: t[2]
+                json_data.append(sp)
+            return json.dumps(json_data)
+
 if __name__ == '__main__':
     cherrypy.config.update({
         'server.socket_port': 9090,
@@ -48,6 +63,13 @@ if __name__ == '__main__':
         '/': {
             'tools.response_headers.on': True,
             'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*')]
+        },
+        '/salesperson': {
+            'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
+            'tools.response_headers.on': True,
+            'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'text/plain')]
         }
     }
-    cherrypy.quickstart(Main(), '/', conf)
+    app = Main()
+    app.salesperson = Salesperson()
+    cherrypy.quickstart(app, '/api', conf)
