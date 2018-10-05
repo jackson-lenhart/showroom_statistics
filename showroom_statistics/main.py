@@ -34,12 +34,12 @@ class Main(object):
         appts = r.json()
         return json.dumps(appts)
 
-@cherrypy.expose
 class Salesperson(object):
 
-    # GET sends back all the salespeople
+    # index sends back all the salespeople
+    @cherrypy.expose
     @cherrypy.tools.accept(media='text/plain')
-    def GET(self):
+    def index(self):
         query = '''SELECT * FROM salesperson'''
         with sqlite3.connect(db_string) as connection:
             cursor = connection.execute(query)
@@ -55,6 +55,42 @@ class Salesperson(object):
                 json_data.append(sp)
             return json.dumps(json_data)
 
+class Visitor(object):
+
+    # TODO: index sends back all visitors currently waiting
+    @cherrypy.expose
+    def index(self):
+        return 'OK'
+
+    @cherrypy.expose
+    def add(self):
+        with sqlite3.connect(db_string) as connection:
+            query = '''INSERT INTO visitor (name, is_waiting, has_visited_before) VALUES ('James', 1, 0)'''
+            connection.execute(query)
+            return 'OK'
+
+    # observe sets up an event stream with the client
+    @cherrypy.expose
+    def observe(self):
+        def event_stream():
+            with sqlite3.connect(db_string) as connection:
+                query = '''SELECT * FROM visitor WHERE is_waiting=1'''
+                cursor = connection.execute(query)
+                visitors = cursor.fetchall()
+                while True:
+                    cursor = connection.execute(query)
+                    latest_visitors = cursor.fetchall()
+                    if len(latest_visitors) != len(visitors):
+                        yield 'data: list updated!\n\n'
+                        visitors = latest_visitors
+        return event_stream()
+
+    observe._cp_config = { 'response.stream': True }
+
+# TODO
+def jsonify_visitors(sql_data):
+    return 'OK'
+
 if __name__ == '__main__':
     cherrypy.config.update({
         'server.socket_port': 9090,
@@ -65,11 +101,15 @@ if __name__ == '__main__':
             'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*')]
         },
         '/salesperson': {
-            'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
             'tools.response_headers.on': True,
             'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'text/plain')]
+        },
+        '/visitor': {
+            'tools.response_headers.on': True,
+            'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'text/event-stream')]
         }
     }
     app = Main()
     app.salesperson = Salesperson()
+    app.visitor = Visitor()
     cherrypy.quickstart(app, '/api', conf)

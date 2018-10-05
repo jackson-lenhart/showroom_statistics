@@ -5,10 +5,11 @@ db_string = os.environ['DB_STRING']
 
 sql_commands = [
     '''DROP TABLE IF EXISTS visitor''',
-    '''DROP TABLE IF EXISTS salesperson''',
+    # '''DROP TABLE IF EXISTS salesperson''',
     '''CREATE TABLE IF NOT EXISTS visitor (
         id INTEGER PRIMARY KEY,
         name varchar(255) NOT NULL,
+        is_waiting bit NOT NULL,
         has_visited_before bit NOT NULL,
         salesperson_id REFERENCES salesperson(id),
         notes varchar(255),
