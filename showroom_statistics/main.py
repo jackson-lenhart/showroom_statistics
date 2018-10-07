@@ -60,7 +60,13 @@ class Visitor(object):
     # TODO: index sends back all visitors currently waiting
     @cherrypy.expose
     def index(self):
-        return 'OK'
+        with sqlite3.connect(db_string) as connection:
+            query = '''SELECT * FROM visitor WHERE is_waiting=1'''
+            cursor = connection.execute(query)
+            data = cursor.fetchall()
+
+            # Comprehend list of tuples into json-friendly data
+            return json.dumps([ jsonify_visitor(t) for t in data ])
 
     @cherrypy.expose
     def add(self):
@@ -87,9 +93,24 @@ class Visitor(object):
 
     observe._cp_config = { 'response.stream': True }
 
-# TODO
-def jsonify_visitors(sql_data):
-    return 'OK'
+# Takes a visitor tuple returned from SQL and turns it into a json-friendly dict
+def jsonify_visitor(t):
+    v = {
+        'id': t[0],
+        'name': t[1],
+        'isWaiting': t[2],
+        'hasVisitedBefore': t[3]
+    }
+
+    # Nullable fields
+    if t[4]:
+        v['salespersonId'] = t[4]
+    if t[5]:
+        v['notes'] = t[5]
+    if t[6]:
+        v['lookingFor'] = t[6]
+
+    return v
 
 if __name__ == '__main__':
     cherrypy.config.update({
