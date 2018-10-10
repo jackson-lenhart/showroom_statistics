@@ -71,7 +71,7 @@ class Visitor(object):
     @cherrypy.expose
     def add(self):
         with sqlite3.connect(db_string) as connection:
-            query = '''INSERT INTO visitor (name, is_waiting, has_visited_before) VALUES ('James', 1, 0)'''
+            query = '''INSERT INTO visitor (name, is_waiting, has_visited_before) VALUES ('Isaac', 1, 0)'''
             connection.execute(query)
             return 'OK'
 
@@ -87,7 +87,8 @@ class Visitor(object):
                     cursor = connection.execute(query)
                     latest_visitors = cursor.fetchall()
                     if len(latest_visitors) != len(visitors):
-                        yield 'data: list updated!\n\n'
+                        json_data = [ jsonify_visitor(t) for t in latest_visitors ]
+                        yield 'data: ' + json.dumps(json_data) + '\n\n'
                         visitors = latest_visitors
         return event_stream()
 
