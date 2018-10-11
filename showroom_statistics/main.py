@@ -57,7 +57,7 @@ class Salesperson(object):
 
 class Visitor(object):
 
-    # TODO: index sends back all visitors currently waiting
+    # index sends back all visitors currently waiting
     @cherrypy.expose
     def index(self):
         with sqlite3.connect(db_string) as connection:
@@ -68,11 +68,32 @@ class Visitor(object):
             # Comprehend list of tuples into json-friendly data
             return json.dumps([ jsonify_visitor(t) for t in data ])
 
+    # accepts a json 'visitor' object
     @cherrypy.expose
+    @cherrypy.tools.json_in()
     def add(self):
+        visitor = cherrypy.request.json
+        name = visitor['name']
+        is_waiting = visitor['isWaiting']
+        has_visited_before = visitor['hasVisitedBefore']
+
+        query = '''INSERT INTO visitor (
+            name,
+            is_waiting,
+            has_visited_before,
+            salesperson_id,
+            notes,
+            looking_for
+        ) VALUES (?, ?, ?, ?, ?, ?)'''
+
+        values = [name, is_waiting, has_visited_before]
+
+        # Nullable fields
+        nullable = ['salespersonId', 'notes', 'lookingFor']
+        values += [visitor[k] if k in visitor else None for k in nullable]
+
         with sqlite3.connect(db_string) as connection:
-            query = '''INSERT INTO visitor (name, is_waiting, has_visited_before) VALUES ('Isaac', 1, 0)'''
-            connection.execute(query)
+            connection.execute(query, tuple(values))
             return 'OK'
 
     # observe sets up an event stream with the client
