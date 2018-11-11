@@ -67,11 +67,11 @@ def jsonify_visitor(t):
 
     # Nullable fields
     if t[5]:
-        v['salespersonId'] = t[4]
+        v['salespersonId'] = t[5]
     if t[6]:
-        v['notes'] = t[5]
+        v['notes'] = t[6]
     if t[7]:
-        v['lookingFor'] = t[6]
+        v['lookingFor'] = t[7]
 
     return v
 
@@ -87,7 +87,6 @@ class Visitor(object):
 
             # Comprehend list of tuples into json-friendly data
             json_visitors = [ jsonify_visitor(t) for t in data ]
-            print(json_visitors)
             return json.dumps(json_visitors)
 
     # accepts a json 'visitor' object
@@ -95,7 +94,6 @@ class Visitor(object):
     @cherrypy.tools.json_in()
     def add(self):
         visitor = cherrypy.request.json
-        print(visitor)
         name = visitor['name']
         is_waiting = visitor['isWaiting']
         has_visited_before = visitor['hasVisitedBefore']
