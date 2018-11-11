@@ -6,8 +6,8 @@ import requests
 import os
 
 db_string = os.environ['DB_STRING']
-acuity_userid = os.environ['ACUITY_USERID']
-acuity_apikey = os.environ['ACUITY_APIKEY']
+# acuity_userid = os.environ['ACUITY_USERID']
+# acuity_apikey = os.environ['ACUITY_APIKEY']
 
 acuity_root = 'https://acuityscheduling.com/api/v1'
 
@@ -55,6 +55,26 @@ class Salesperson(object):
                 json_data.append(sp)
             return json.dumps(json_data)
 
+# Takes a visitor tuple returned from SQL and turns it into a json-friendly dict
+def jsonify_visitor(t):
+    v = {
+        'id': t[0],
+        'signedInTimestamp': t[1],
+        'name': t[2],
+        'isWaiting': t[3],
+        'hasVisitedBefore': t[4]
+    }
+
+    # Nullable fields
+    if t[5]:
+        v['salespersonId'] = t[4]
+    if t[6]:
+        v['notes'] = t[5]
+    if t[7]:
+        v['lookingFor'] = t[6]
+
+    return v
+
 class Visitor(object):
 
     # index sends back all visitors currently waiting
@@ -66,29 +86,33 @@ class Visitor(object):
             data = cursor.fetchall()
 
             # Comprehend list of tuples into json-friendly data
-            return json.dumps([ jsonify_visitor(t) for t in data ])
+            json_visitors = [ jsonify_visitor(t) for t in data ]
+            print(json_visitors)
+            return json.dumps(json_visitors)
 
     # accepts a json 'visitor' object
     @cherrypy.expose
     @cherrypy.tools.json_in()
     def add(self):
         visitor = cherrypy.request.json
+        print(visitor)
         name = visitor['name']
         is_waiting = visitor['isWaiting']
         has_visited_before = visitor['hasVisitedBefore']
+        signed_in_timestamp = visitor['signedInTimestamp']
 
         query = '''INSERT INTO visitor (
             name,
             is_waiting,
             has_visited_before,
+            signed_in_timestamp,
             salesperson_id,
             notes,
             looking_for
-        ) VALUES (?, ?, ?, ?, ?, ?)'''
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)'''
+        values = [name, is_waiting, has_visited_before, signed_in_timestamp]
 
-        values = [name, is_waiting, has_visited_before]
-
-        # Nullable fields
+        # nullable fields
         nullable = ['salespersonId', 'notes', 'lookingFor']
         values += [visitor[k] if k in visitor else None for k in nullable]
 
@@ -96,7 +120,7 @@ class Visitor(object):
             connection.execute(query, tuple(values))
             return 'OK'
 
-    # observe sets up an event stream with the client
+    # sets up an event stream with the client
     @cherrypy.expose
     def observe(self):
         def event_stream():
@@ -115,24 +139,14 @@ class Visitor(object):
 
     observe._cp_config = { 'response.stream': True }
 
-# Takes a visitor tuple returned from SQL and turns it into a json-friendly dict
-def jsonify_visitor(t):
-    v = {
-        'id': t[0],
-        'name': t[1],
-        'isWaiting': t[2],
-        'hasVisitedBefore': t[3]
-    }
+class Statistics(object):
 
-    # Nullable fields
-    if t[4]:
-        v['salespersonId'] = t[4]
-    if t[5]:
-        v['notes'] = t[5]
-    if t[6]:
-        v['lookingFor'] = t[6]
+    # TODO: inserts all data relevant to a customer being helped
+    @cherrypy.expose
+    @cherrypy.tools.json_in()
+    def helped(self):
+        return 'OK'
 
-    return v
 
 if __name__ == '__main__':
     cherrypy.config.update({

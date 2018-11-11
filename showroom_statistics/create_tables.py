@@ -8,6 +8,7 @@ sql_commands = [
     # '''DROP TABLE IF EXISTS salesperson''',
     '''CREATE TABLE IF NOT EXISTS visitor (
         id INTEGER PRIMARY KEY,
+        signed_in_timestamp integer NOT NULL,
         name varchar(255) NOT NULL,
         is_waiting bit NOT NULL,
         has_visited_before bit NOT NULL,
@@ -19,7 +20,17 @@ sql_commands = [
         id INTEGER PRIMARY KEY,
         name varchar(255) NOT NULL,
         department varchar(255)
-    )'''
+    )''',
+    '''CREATE TABLE IF NOT EXISTS statistics (
+        id INTEGER PRIMARY KEY,
+        signed_in_timestamp integer NOT NULL,
+        wait_time integer NOT NULL,
+        visitor_id REFERENCES visitor(id),
+        salesperson_id REFERENCES salesperson(id),
+        salesperson_who_helped_id REFERENCES salesperson(id),
+        looking_for varchar(255),
+        department varchar(255)
+    )''',
 ]
 
 with sqlite3.connect(db_string) as connection:
