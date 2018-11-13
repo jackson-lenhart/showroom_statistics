@@ -143,8 +143,12 @@ class Statistics(object):
     @cherrypy.expose
     @cherrypy.tools.json_in()
     def helped(self):
-        return 'OK'
-
+        up_data = cherrypy.request.json
+        print(up_data)
+        with sqlite3.connect(db_string) as connection:
+            query = '''UPDATE visitor SET is_waiting=0 WHERE id=(?)'''
+            connection.execute(query, (up_data['customer']['id'],))
+            return 'OK'
 
 if __name__ == '__main__':
     cherrypy.config.update({
@@ -162,9 +166,14 @@ if __name__ == '__main__':
         '/visitor': {
             'tools.response_headers.on': True,
             'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'text/event-stream')]
+        },
+        '/statistics': {
+            'tools.response_headers.on': True,
+            'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'text/event-stream')]
         }
     }
     app = Main()
     app.salesperson = Salesperson()
     app.visitor = Visitor()
+    app.statistics = Statistics()
     cherrypy.quickstart(app, '/api', conf)
