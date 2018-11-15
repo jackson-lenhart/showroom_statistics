@@ -4,6 +4,7 @@ import json
 import datetime
 import requests
 import os
+import time
 
 db_string = os.environ['DB_STRING']
 # acuity_userid = os.environ['ACUITY_USERID']
@@ -14,14 +15,14 @@ acuity_root = 'https://acuityscheduling.com/api/v1'
 today = datetime.datetime.today().strftime('%Y-%m-%d')
 print(today)
 
-SQL = 'INSERT INTO stuff VALUES (4)'
+QUEUE = []
+INCREMENTING_ID = 1
 
 class Main(object):
     @cherrypy.expose
     def index(self):
         with sqlite3.connect(db_string) as connection:
-            connection.execute(SQL)
-        return 'OK'
+            return 'OK'
     # This will get today's appointments
     @cherrypy.expose
     def appointments(self):
@@ -55,84 +56,59 @@ class Salesperson(object):
                 json_data.append(sp)
             return json.dumps(json_data)
 
-# Takes a visitor tuple returned from SQL and turns it into a json-friendly dict
-def jsonify_visitor(t):
-    v = {
-        'id': t[0],
-        'signedInTimestamp': t[1],
-        'name': t[2],
-        'isWaiting': t[3],
-        'hasVisitedBefore': t[4]
-    }
-
-    # Nullable fields
-    if t[5]:
-        v['salespersonId'] = t[5]
-    if t[6]:
-        v['notes'] = t[6]
-    if t[7]:
-        v['lookingFor'] = t[7]
-
-    return v
+def hash_queue(q):
+    list_of_hashes = [hash(frozenset(d.items())) for d in q]
+    return hash(tuple(list_of_hashes))
 
 class Visitor(object):
 
     # index sends back all visitors currently waiting
     @cherrypy.expose
     def index(self):
-        with sqlite3.connect(db_string) as connection:
-            query = '''SELECT * FROM visitor WHERE is_waiting=1'''
-            cursor = connection.execute(query)
-            data = cursor.fetchall()
+        global QUEUE
 
-            # Comprehend list of tuples into json-friendly data
-            json_visitors = [ jsonify_visitor(t) for t in data ]
-            return json.dumps(json_visitors)
+        return json.dumps(QUEUE)
 
     # accepts a json 'visitor' object
     @cherrypy.expose
     @cherrypy.tools.json_in()
     def add(self):
-        visitor = cherrypy.request.json
-        name = visitor['name']
-        is_waiting = visitor['isWaiting']
-        has_visited_before = visitor['hasVisitedBefore']
-        signed_in_timestamp = visitor['signedInTimestamp']
+        global INCREMENTING_ID
+        global QUEUE
 
-        query = '''INSERT INTO visitor (
-            name,
-            is_waiting,
-            has_visited_before,
-            signed_in_timestamp,
-            salesperson_id,
-            notes,
-            looking_for
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)'''
-        values = [name, is_waiting, has_visited_before, signed_in_timestamp]
+        req_data = cherrypy.request.json
+        visitor = {
+            'name': req_data['name'],
+            'is_waiting': req_data['isWaiting'],
+            'has_visited_before': req_data['hasVisitedBefore'],
+            'signed_in_timestamp': req_data['signedInTimestamp']
+        }
 
         # nullable fields
         nullable = ['salespersonId', 'notes', 'lookingFor']
-        values += [visitor[k] if k in visitor else None for k in nullable]
+        for k in nullable:
+            if k in req_data:
+                visitor[k] = req_data[k]
+            else:
+                visitor[k] = None
 
-        with sqlite3.connect(db_string) as connection:
-            connection.execute(query, tuple(values))
-            return 'OK'
+        visitor['id'] = INCREMENTING_ID
+        INCREMENTING_ID += 1
+
+        QUEUE.append(visitor)
 
     # sets up an event stream with the client
     @cherrypy.expose
     def observe(self):
         def event_stream():
-            with sqlite3.connect(db_string) as connection:
-                query = '''SELECT * FROM visitor WHERE is_waiting=1'''
-                cursor = connection.execute(query)
-                visitors = cursor.fetchall()
-                while True:
-                    cursor = connection.execute(query)
-                    latest_visitors = cursor.fetchall()
-                    if len(latest_visitors) != len(visitors):
-                        json_data = [ jsonify_visitor(t) for t in latest_visitors ]
-                        yield 'data: ' + json.dumps(json_data) + '\n\n'
-                        visitors = latest_visitors
+            global QUEUE
+            qhash = hash_queue(QUEUE)
+            while True:
+                curr_qhash = hash_queue(QUEUE)
+                if curr_qhash != qhash:
+                    qhash = curr_qhash
+                    yield 'data: ' + json.dumps(QUEUE) + '\n\n'
+                    time.sleep(1)
         return event_stream()
 
     observe._cp_config = { 'response.stream': True }
@@ -143,12 +119,14 @@ class Statistics(object):
     @cherrypy.expose
     @cherrypy.tools.json_in()
     def helped(self):
+        global QUEUE
+
         up_data = cherrypy.request.json
         print(up_data)
-        with sqlite3.connect(db_string) as connection:
-            query = '''UPDATE visitor SET is_waiting=0 WHERE id=(?)'''
-            connection.execute(query, (up_data['customer']['id'],))
-            return 'OK'
+        for v in QUEUE:
+            if v['id'] == up_data['customer']['id']:
+                QUEUE.remove(v)
+                return 'OK'
 
 if __name__ == '__main__':
     cherrypy.config.update({
@@ -172,6 +150,7 @@ if __name__ == '__main__':
             'tools.response_headers.headers': [('Access-Control-Allow-Origin', '*'), ('Content-Type', 'text/event-stream')]
         }
     }
+
     app = Main()
     app.salesperson = Salesperson()
     app.visitor = Visitor()
