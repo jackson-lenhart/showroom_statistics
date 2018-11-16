@@ -2,6 +2,7 @@ import cherrypy
 import sqlite3
 import json
 import datetime
+import time
 import requests
 import os
 import time
@@ -120,13 +121,38 @@ class Statistics(object):
     @cherrypy.tools.json_in()
     def helped(self):
         global QUEUE
+        global INCREMENTING_ID
 
         up_data = cherrypy.request.json
         print(up_data)
+        customer = up_data['customer']
         for v in QUEUE:
-            if v['id'] == up_data['customer']['id']:
-                QUEUE.remove(v)
-                return 'OK'
+            if v['id'] == customer['id']:
+                with sqlite3.connect(db_string) as connection:
+                    query = '''INSERT INTO statistics (
+                        id,
+                        signed_in_timestamp,
+                        wait_time,
+                        visitor_id,
+                        salesperson_id,
+                        salesperson_who_helped_id,
+                        looking_for,
+                        department
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'''
+                    values = (
+                        INCREMENTING_ID,
+                        customer['signed_in_timestamp'],
+                        int(time.time()) - customer['signed_in_timestamp'],
+                        customer['id'],
+                        customer['salespersonId'],
+                        up_data['salespersonId'],
+                        customer['lookingFor'],
+                        1
+                    )
+                    QUEUE.remove(v)
+                    INCREMENTING_ID += 1
+                    connection.execute(query, values)
+                    return 'OK'
 
 if __name__ == '__main__':
     cherrypy.config.update({
