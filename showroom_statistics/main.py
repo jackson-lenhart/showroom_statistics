@@ -6,6 +6,7 @@ import time
 import requests
 import os
 import time
+import uuid
 
 db_string = os.environ['DB_STRING']
 # acuity_userid = os.environ['ACUITY_USERID']
@@ -128,9 +129,10 @@ class Statistics(object):
         customer = up_data['customer']
         for v in QUEUE:
             if v['id'] == customer['id']:
+                QUEUE.remove(v)
+                INCREMENTING_ID += 1
                 with sqlite3.connect(db_string) as connection:
                     query = '''INSERT INTO statistics (
-                        id,
                         signed_in_timestamp,
                         wait_time,
                         visitor_id,
@@ -138,9 +140,8 @@ class Statistics(object):
                         salesperson_who_helped_id,
                         looking_for,
                         department
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'''
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)'''
                     values = (
-                        INCREMENTING_ID,
                         customer['signed_in_timestamp'],
                         int(time.time()) - customer['signed_in_timestamp'],
                         customer['id'],
@@ -149,8 +150,6 @@ class Statistics(object):
                         customer['lookingFor'],
                         1
                     )
-                    QUEUE.remove(v)
-                    INCREMENTING_ID += 1
                     connection.execute(query, values)
                     return 'OK'
 
