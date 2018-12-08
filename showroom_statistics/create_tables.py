@@ -1,40 +1,39 @@
-import sqlite3
+import mysql.connector
 import os
 
-db_string = os.environ['DB_STRING']
+server_password = os.environ['SERVER_PASSWORD']
+
+config = {
+  'host':'showroom-statistics1.mysql.database.azure.com',
+  'user': 'jackson-lenhart@showroom-statistics1',
+  'password': server_password,
+  'database': 'showroom_statistics'
+}
 
 sql_commands = [
-    '''DROP TABLE IF EXISTS visitor''',
-    # '''DROP TABLE IF EXISTS salesperson''',
-    '''CREATE TABLE IF NOT EXISTS visitor (
-        id INTEGER PRIMARY KEY,
-        signed_in_timestamp integer NOT NULL,
-        name varchar(255) NOT NULL,
-        is_waiting bit NOT NULL,
-        has_visited_before bit NOT NULL,
-        salesperson_id REFERENCES salesperson(id),
-        notes varchar(255),
-        looking_for varchar(255)
-    )''',
+    '''DROP TABLE IF EXISTS salesperson''',
+    '''DROP TABLE IF EXISTS statistics''',
     '''CREATE TABLE IF NOT EXISTS salesperson (
-        id INTEGER PRIMARY KEY,
-        name varchar(255) NOT NULL,
-        department varchar(255)
+        id INTEGER AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        is_active BIT(1) NOT NULL,
+        department ENUM('Appliance', 'Lighting')
     )''',
     '''CREATE TABLE IF NOT EXISTS statistics (
-        id INTEGER PRIMARY KEY,
-        signed_in_timestamp integer NOT NULL,
-        wait_time integer NOT NULL,
-        visitor_id REFERENCES visitor(id),
-        salesperson_id REFERENCES salesperson(id),
-        salesperson_who_helped_id REFERENCES salesperson(id),
-        looking_for varchar(255),
-        department varchar(255)
+        id INTEGER AUTO_INCREMENT PRIMARY KEY,
+        signed_in_timestamp INTEGER NOT NULL,
+        wait_time INTEGER NOT NULL,
+        visitor_id INTEGER REFERENCES visitor(id),
+        salesperson_id INTEGER REFERENCES salesperson(id),
+        salesperson_who_helped_id INTEGER REFERENCES salesperson(id),
+        looking_for VARCHAR(255),
+        department ENUM('Appliance', 'Lighting')
     )''',
 ]
 
-with sqlite3.connect(db_string) as connection:
-    for command in sql_commands:
-        connection.execute(command)
+conn = mysql.connector.connect(**config)
+cursor = conn.cursor()
+for command in sql_commands:
+    cursor.execute(command)
 
 print('Tables created!')
